@@ -54,6 +54,9 @@ export async function createSumUpCheckout({ product, buyerEmail }) {
       description: product.name,
       pay_to_email: "sales@punkatmusic.com",
       redirect_url: config.successUrl,
+      hosted_checkout: {
+        enabled: true,
+      },
     },
   });
 
@@ -62,6 +65,7 @@ export async function createSumUpCheckout({ product, buyerEmail }) {
     externalId: payload.id,
     checkoutId: payload.id,
     checkoutReference,
+    checkoutUrl: payload.hosted_checkout_url || null,
   };
 }
 
