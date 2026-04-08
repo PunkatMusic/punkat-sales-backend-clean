@@ -101,9 +101,9 @@ checkoutRouter.post("/paypal/capture", async (req, res, next) => {
     const purchaseUnit = capture.purchase_units?.[0] || null;
     const customData = decodePayPalCustomData(purchaseUnit?.payments?.captures?.[0]?.custom_id || purchaseUnit?.custom_id);
     const buyerEmail =
-      capture.payer?.email_address ||
       order?.buyer_email ||
       customData?.buyerEmail ||
+      capture.payer?.email_address ||
       null;
 
     if (!buyerEmail) {
