@@ -82,6 +82,41 @@ checkoutRouter.post("/sumup/create", async (req, res, next) => {
   }
 });
 
+checkoutRouter.post("/promo/redeem", async (req, res, next) => {
+  try {
+    const product = validateBody(req.body);
+    const promoCode = req.body?.promoCode?.trim();
+
+    if (!promoCode) {
+      throw new HttpError(400, "promoCode is required.");
+    }
+
+    if (promoCode !== config.promo.testCode) {
+      throw new HttpError(403, "Promo code is invalid.");
+    }
+
+    const license = createLicenseRecord(product.code);
+    const token = createDownloadToken();
+    const downloadUrl = resolveDownloadUrl(product, token);
+
+    await sendLicenseEmail({
+      buyerEmail: req.body.buyerEmail,
+      productName: product.name,
+      serial: license.serial,
+      downloadUrl,
+    });
+
+    res.json({
+      ok: true,
+      serialLast4: license.serialLast4,
+      downloadUrl,
+      message: "Promo fulfillment email sent.",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 checkoutRouter.post("/paypal/capture", async (req, res, next) => {
   try {
     const { orderId, productSlug } = req.body || {};
