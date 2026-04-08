@@ -28,4 +28,7 @@ export const config = {
     apiBase: process.env.SUMUP_API_BASE || "https://api.sumup.com",
   },
   downloadRoot: process.env.DOWNLOAD_ROOT || "",
+  promo: {
+    testCode: process.env.PROMO_TEST_CODE || "PUNKATTEST",
+  },
 };
