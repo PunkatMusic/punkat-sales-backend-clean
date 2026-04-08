@@ -75,6 +75,7 @@ checkoutRouter.post("/sumup/create", async (req, res, next) => {
     res.json({
       checkoutId: checkout.checkoutId,
       checkoutReference: checkout.checkoutReference,
+      checkoutUrl: checkout.checkoutUrl,
       orderId: order.id,
     });
   } catch (error) {
