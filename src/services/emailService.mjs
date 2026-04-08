@@ -13,6 +13,10 @@ export async function sendLicenseEmail({ buyerEmail, productName, serial, downlo
     host: config.smtp.host,
     port: config.smtp.port,
     secure: config.smtp.port === 465,
+    requireTLS: config.smtp.port === 587,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     auth: {
       user: config.smtp.user,
       pass: config.smtp.pass,
@@ -29,12 +33,19 @@ export async function sendLicenseEmail({ buyerEmail, productName, serial, downlo
     "Keep this email for your records.",
   ].join("\n");
 
-  await transporter.sendMail({
-    from: config.smtp.from,
-    to: buyerEmail,
-    subject,
-    text,
-  });
+  await Promise.race([
+    transporter.sendMail({
+      from: config.smtp.from,
+      to: buyerEmail,
+      subject,
+      text,
+    }),
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("SMTP delivery timed out."));
+      }, 15000);
+    }),
+  ]);
 
   return {
     delivered: true,
