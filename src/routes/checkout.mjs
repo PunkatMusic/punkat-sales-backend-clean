@@ -146,9 +146,23 @@ checkoutRouter.post("/promo/redeem", async (req, res, next) => {
       throw new HttpError(403, "Promo code is invalid.");
     }
 
+    const externalId = `promo_${product.slug}_${Date.now()}`;
+    const order = await createOrderRecord({
+      provider: "promo",
+      externalId,
+      product,
+      buyerEmail: req.body.buyerEmail,
+    });
+
     const license = createLicenseRecord(product.code);
     const token = createDownloadToken();
     const downloadUrl = resolveDownloadUrl(product, token);
+
+    if (order) {
+      await markOrderPaid({ providerOrderId: externalId });
+      await storeLicense({ orderId: order.id, productId: product.id, license });
+      await storeDownloadToken({ orderId: order.id, token });
+    }
 
     await sendLicenseEmail({
       buyerEmail: req.body.buyerEmail,
