@@ -1,5 +1,6 @@
 import express from "express";
 import { config } from "./config.mjs";
+import { initializeDatabase } from "./db/init.mjs";
 import { checkoutRouter } from "./routes/checkout.mjs";
 import { downloadRouter } from "./routes/download.mjs";
 import { licenseRouter } from "./routes/license.mjs";
@@ -62,6 +63,23 @@ app.use((error, _req, res, _next) => {
   });
 });
 
-app.listen(config.port, () => {
-  console.log(`punkat-sales-backend listening on :${config.port}`);
-});
+async function startServer() {
+  try {
+    const dbState = await initializeDatabase();
+
+    if (dbState.enabled) {
+      console.log(`database initialized, seeded products: ${dbState.seededProducts}`);
+    } else {
+      console.log("database initialization skipped");
+    }
+
+    app.listen(config.port, () => {
+      console.log(`punkat-sales-backend listening on :${config.port}`);
+    });
+  } catch (error) {
+    console.error("database initialization failed", error);
+    process.exit(1);
+  }
+}
+
+startServer();
