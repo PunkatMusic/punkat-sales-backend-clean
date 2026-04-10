@@ -3,13 +3,13 @@ import { config } from "../config.mjs";
 
 const signature = [
   "Best regards,",
-  "Tansel Gunay",
-  "PUNKAT MUSIC Sàrls",
+  "Tansel GUNAY - Punkat Music Sàrls",
   "TVA: LU31084691",
-  "35 Rue J.F. Kennedy, Batiment-B No:7a",
-  "L-7327 Steinsel",
-  "LUXEMBOURG",
-  "Phone: +352 621 460 100",
+  "",
+  "+352 691 666 633",
+  "",
+  "35 Rue J.F. Kennedy, Bâtiment-B No:7a ",
+  "L-7327 Steinsel LUXEMBOURG",
 ].join("\n");
 
 function createTransporter() {
