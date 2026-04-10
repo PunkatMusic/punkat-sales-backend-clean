@@ -44,7 +44,9 @@ export async function sendPurchaseLinkEmail({ buyerEmail, productName, checkoutU
     "",
     `Open checkout: ${checkoutUrl}`,
     "",
-    "This link was requested for the email address that will receive the download link and serial after payment.",
+    "After payment, the download link and serial will be sent to this same email address.",
+    "",
+    "If you did not request this email, you can ignore it.",
   ].join("\n");
 
   await sendMailWithTimeout({
@@ -75,6 +77,7 @@ export async function sendLicenseEmail({ buyerEmail, productName, serial, downlo
     `Serial number: ${serial}`,
     "",
     "Keep this email for your records.",
+    "You will need this serial during installation or first launch.",
   ].join("\n");
 
   await sendMailWithTimeout({
