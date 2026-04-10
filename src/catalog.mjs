@@ -6,9 +6,9 @@ export const products = [
     name: "reVVerb",
     price: 5,
     currency: "EUR",
-    fileName: "reVVerb-macOS.zip",
+    fileName: "PunkatRevVerb_macOS_v1.0.0.pkg",
     deliveryMode: "direct_link",
-    downloadUrl: "https://www.dropbox.com/scl/fo/wz5ict6ctowjr55mya1pt/ACrODQs6EYPVRhgv2esxo4E?rlkey=q3stytfr340tyum7mza8i7ohr&st=4dbkr8s7&dl=1",
+    downloadUrl: "https://www.dropbox.com/scl/fi/q3ndzd9szx1g1r287i9q8/PunkatRevVerb_macOS_v1.0.0.pkg?rlkey=mzzu0oqquj63ipbxsp0yudqd5&st=0u8t9spz&dl=1",
     active: true,
   },
   {
