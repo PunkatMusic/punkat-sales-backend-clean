@@ -6,7 +6,7 @@ import { capturePayPalOrder, createPayPalCheckout, decodePayPalCustomData } from
 import { createSumUpCheckout, decodeCheckoutReference, getSumUpCheckout } from "../services/sumupService.mjs";
 import { createLicenseRecord } from "../services/licenseService.mjs";
 import { createDownloadToken } from "../services/downloadService.mjs";
-import { sendLicenseEmail } from "../services/emailService.mjs";
+import { sendLicenseEmail, sendPurchaseLinkEmail } from "../services/emailService.mjs";
 import { config } from "../config.mjs";
 
 export const checkoutRouter = express.Router();
@@ -32,6 +32,56 @@ function validateBody(body) {
 
   return product;
 }
+
+function createCheckoutAccessToken(data) {
+  return Buffer.from(JSON.stringify(data)).toString("base64url");
+}
+
+export function decodeCheckoutAccessToken(token) {
+  if (!token) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(Buffer.from(token, "base64url").toString("utf8"));
+  } catch (_error) {
+    return null;
+  }
+}
+
+function buildCheckoutPageUrl(product, buyerEmail) {
+  const pageByProduct = {
+    revverb: "revverb-buy.html",
+  };
+  const access = createCheckoutAccessToken({
+    productSlug: product.slug,
+    buyerEmail,
+  });
+  const page = pageByProduct[product.slug] || `${product.slug}-buy.html`;
+
+  return `${config.frontendOrigin}/${page}?access=${encodeURIComponent(access)}`;
+}
+
+checkoutRouter.post("/access-link/send", async (req, res, next) => {
+  try {
+    const product = validateBody(req.body);
+    const checkoutUrl = buildCheckoutPageUrl(product, req.body.buyerEmail);
+
+    await sendPurchaseLinkEmail({
+      buyerEmail: req.body.buyerEmail,
+      productName: product.name,
+      checkoutUrl,
+    });
+
+    res.json({
+      ok: true,
+      checkoutUrl,
+      message: "Purchase link email sent.",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 checkoutRouter.post("/paypal/create", async (req, res, next) => {
   try {
