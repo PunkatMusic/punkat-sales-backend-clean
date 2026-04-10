@@ -1,6 +1,14 @@
 import nodemailer from "nodemailer";
 import { config } from "../config.mjs";
 
+const signature = [
+  "Best regards,",
+  "Tansel Gunay",
+  "Punkat Music Sarl.S",
+  "Luxembourg",
+  "Phone: +352 621 460 100",
+].join("\n");
+
 function createTransporter() {
   return nodemailer.createTransport({
     host: config.smtp.host,
@@ -40,6 +48,8 @@ export async function sendPurchaseLinkEmail({ buyerEmail, productName, checkoutU
 
   const subject = `${productName} purchase link`;
   const text = [
+    "Hello,",
+    "",
     `Your private purchase link for ${productName} is ready.`,
     "",
     `Open checkout: ${checkoutUrl}`,
@@ -47,6 +57,8 @@ export async function sendPurchaseLinkEmail({ buyerEmail, productName, checkoutU
     "After payment, the download link and serial will be sent to this same email address.",
     "",
     "If you did not request this email, you can ignore it.",
+    "",
+    signature,
   ].join("\n");
 
   await sendMailWithTimeout({
@@ -71,6 +83,8 @@ export async function sendLicenseEmail({ buyerEmail, productName, serial, downlo
 
   const subject = `${productName} download and license`;
   const text = [
+    "Hello,",
+    "",
     `Thank you for purchasing ${productName}.`,
     "",
     `Download link: ${downloadUrl}`,
@@ -78,6 +92,8 @@ export async function sendLicenseEmail({ buyerEmail, productName, serial, downlo
     "",
     "Keep this email for your records.",
     "You will need this serial during installation or first launch.",
+    "",
+    signature,
   ].join("\n");
 
   await sendMailWithTimeout({
