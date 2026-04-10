@@ -51,7 +51,7 @@ export function decodeCheckoutAccessToken(token) {
 
 function buildCheckoutPageUrl(product, buyerEmail) {
   const pageByProduct = {
-    revverb: "revverb-buy.html",
+    revverb: "revverb-buy-v2.html",
   };
   const access = createCheckoutAccessToken({
     productSlug: product.slug,
