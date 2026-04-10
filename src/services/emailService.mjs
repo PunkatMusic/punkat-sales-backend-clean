@@ -4,8 +4,11 @@ import { config } from "../config.mjs";
 const signature = [
   "Best regards,",
   "Tansel Gunay",
-  "Punkat Music Sarl.S",
-  "Luxembourg",
+  "PUNKAT MUSIC Sàrls",
+  "TVA: LU31084691",
+  "35 Rue J.F. Kennedy, Batiment-B No:7a",
+  "L-7327 Steinsel",
+  "LUXEMBOURG",
   "Phone: +352 621 460 100",
 ].join("\n");
 
