@@ -165,3 +165,60 @@ export async function sendBookingConfirmationEmail({
     delivered: true,
   };
 }
+
+export async function sendBookingAdminNotificationEmail({
+  customerName,
+  buyerEmail,
+  serviceName,
+  bookingDate,
+  startLabel,
+  endLabel,
+  durationHours,
+  participants,
+  amount,
+  currency,
+  customerPhone,
+  notes,
+  paymentProvider,
+}) {
+  if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+    return {
+      delivered: false,
+      reason: "SMTP is not configured yet.",
+    };
+  }
+
+  const subject = `New booking confirmed: ${serviceName} | ${bookingDate} ${startLabel}`;
+  const text = [
+    "Hello,",
+    "",
+    "A Punkat Music booking has been confirmed.",
+    "",
+    `Service: ${serviceName}`,
+    `Date: ${bookingDate}`,
+    `Time: ${startLabel} - ${endLabel}`,
+    `Duration: ${durationHours} hour(s)`,
+    `Participants: ${participants}`,
+    `Customer: ${customerName}`,
+    `Email: ${buyerEmail}`,
+    customerPhone ? `Phone: ${customerPhone}` : null,
+    `Amount: ${amount.toFixed(2)} ${currency}`,
+    paymentProvider ? `Payment: ${paymentProvider}` : null,
+    notes ? `Notes: ${notes}` : null,
+    "",
+    signature,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await sendMailWithTimeout({
+    from: config.smtp.from,
+    to: config.bookingAdminEmail,
+    subject,
+    text,
+  });
+
+  return {
+    delivered: true,
+  };
+}

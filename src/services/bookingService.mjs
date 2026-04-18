@@ -367,6 +367,84 @@ export async function getBookingByToken(bookingToken) {
   return result.rows[0] || null;
 }
 
+export async function createAdminBooking(payload) {
+  ensureDatabaseConfigured();
+
+  const booking = validateBookingRequest(payload);
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+
+    const created = await withStudioLock(client, async () => {
+      const conflict = await findConflictingBooking(
+        client,
+        booking.bookingDate,
+        booking.startHour,
+        booking.endHour
+      );
+
+      if (conflict) {
+        throw new HttpError(409, "Selected slot is no longer available.");
+      }
+
+      const bookingToken = crypto.randomUUID();
+      const result = await client.query(
+        `insert into studio_bookings (
+           booking_token,
+           service_slug,
+           service_name,
+           customer_name,
+           customer_email,
+           customer_phone,
+           participants,
+           notes,
+           booking_date,
+           start_hour,
+           end_hour,
+           duration_hours,
+           amount,
+           currency,
+           status,
+           payment_provider,
+           payment_reference,
+           paid_at,
+           hold_expires_at
+         )
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'confirmed', 'manual', $15, now(), null)
+         returning *`,
+        [
+          bookingToken,
+          booking.service.slug,
+          booking.service.name,
+          booking.customerName,
+          booking.customerEmail,
+          booking.customerPhone || null,
+          booking.participants,
+          booking.notes || null,
+          booking.bookingDate,
+          booking.startHour,
+          booking.endHour,
+          booking.durationHours,
+          booking.amount,
+          booking.currency,
+          `manual_${Date.now()}`,
+        ]
+      );
+
+      return result.rows[0];
+    });
+
+    await client.query("commit");
+    return created;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function confirmBookingPayment({ bookingToken, paymentReference, provider }) {
   ensureDatabaseConfigured();
 
