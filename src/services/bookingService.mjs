@@ -367,6 +367,29 @@ export async function getBookingByToken(bookingToken) {
   return result.rows[0] || null;
 }
 
+export async function getLatestActiveHoldByEmail(customerEmail) {
+  ensureDatabaseConfigured();
+
+  const normalizedEmail = String(customerEmail || "").trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new HttpError(400, "Customer email is required.");
+  }
+
+  const result = await pool.query(
+    `select *
+     from studio_bookings
+     where customer_email = $1
+       and status = 'hold'
+       and hold_expires_at > now()
+     order by created_at desc
+     limit 1`,
+    [normalizedEmail]
+  );
+
+  return result.rows[0] || null;
+}
+
 export async function cancelBookingHold({ bookingToken }) {
   ensureDatabaseConfigured();
 
