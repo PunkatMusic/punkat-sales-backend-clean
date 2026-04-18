@@ -4,6 +4,7 @@ import { createPayPalPayment, capturePayPalOrder } from "../services/paypalServi
 import { createSumUpPayment, getSumUpCheckout } from "../services/sumupService.mjs";
 import {
   attachPaymentReference,
+  cancelBookingHold,
   confirmBookingPayment,
   createAdminBooking,
   createBookingHold,
@@ -16,6 +17,27 @@ import { HttpError } from "../lib/httpError.mjs";
 import { sendBookingAdminNotificationEmail, sendBookingConfirmationEmail } from "../services/emailService.mjs";
 
 export const bookingRouter = express.Router();
+
+function formatBookingDate(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const text = String(value);
+  return text.length >= 10 ? text.slice(0, 10) : text;
+}
+
+function buildCheckoutDescription(booking) {
+  const formattedDate = formatBookingDate(booking.booking_date);
+  const startLabel = `${String(booking.start_hour).padStart(2, "0")}:00`;
+  const endLabel = `${String(booking.end_hour).padStart(2, "0")}:00`;
+
+  return `${booking.service_name} | ${formattedDate} | ${startLabel} - ${endLabel}`;
+}
 
 function buildBookingSuccessUrl(bookingToken, provider) {
   const url = new URL(config.bookingSuccessUrl);
@@ -90,6 +112,26 @@ bookingRouter.get("/summary/:bookingToken", async (req, res, next) => {
   }
 });
 
+bookingRouter.post("/cancel", async (req, res, next) => {
+  try {
+    const { bookingToken } = req.body || {};
+
+    if (!bookingToken) {
+      throw new HttpError(400, "bookingToken is required.");
+    }
+
+    const cancelled = await cancelBookingHold({ bookingToken });
+
+    res.json({
+      ok: true,
+      released: Boolean(cancelled),
+      booking: cancelled ? formatBookingSummary(cancelled) : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 bookingRouter.post("/paypal/create", async (req, res, next) => {
   try {
     const booking = await createBookingHold(req.body);
@@ -98,7 +140,7 @@ bookingRouter.post("/paypal/create", async (req, res, next) => {
     const checkout = await createPayPalPayment({
       amount: Number(booking.amount),
       currency: booking.currency,
-      description: `${booking.service_name} on ${booking.booking_date} at ${String(booking.start_hour).padStart(2, "0")}:00`,
+      description: buildCheckoutDescription(booking),
       buyerEmail: booking.customer_email,
       customData: {
         bookingToken: booking.booking_token,
@@ -158,7 +200,7 @@ bookingRouter.post("/sumup/create", async (req, res, next) => {
     const checkout = await createSumUpPayment({
       amount: Number(booking.amount),
       currency: booking.currency,
-      description: `${booking.service_name} on ${booking.booking_date} at ${String(booking.start_hour).padStart(2, "0")}:00`,
+      description: buildCheckoutDescription(booking),
       buyerEmail: booking.customer_email,
       customData: {
         bookingToken: booking.booking_token,
