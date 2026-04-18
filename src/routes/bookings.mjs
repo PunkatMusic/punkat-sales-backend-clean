@@ -10,6 +10,7 @@ import {
   createBookingHold,
   formatBookingSummary,
   getBookingByToken,
+  getLatestActiveHoldByEmail,
   getPublicBookingServices,
   listAvailabilityForDate,
 } from "../services/bookingService.mjs";
@@ -126,6 +127,103 @@ bookingRouter.post("/cancel", async (req, res, next) => {
       ok: true,
       released: Boolean(cancelled),
       booking: cancelled ? formatBookingSummary(cancelled) : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/pending-lookup", async (req, res, next) => {
+  try {
+    const { customerEmail } = req.body || {};
+    const booking = await getLatestActiveHoldByEmail(customerEmail);
+
+    if (!booking) {
+      throw new HttpError(404, "No pending booking was found for this email.");
+    }
+
+    res.json({
+      booking: formatBookingSummary(booking),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/resume", async (req, res, next) => {
+  try {
+    const { bookingToken, provider } = req.body || {};
+
+    if (!bookingToken) {
+      throw new HttpError(400, "bookingToken is required.");
+    }
+
+    const booking = await getBookingByToken(bookingToken);
+
+    if (!booking) {
+      throw new HttpError(404, "Booking was not found.");
+    }
+
+    if (booking.status !== "hold" || !booking.hold_expires_at || new Date(booking.hold_expires_at) <= new Date()) {
+      throw new HttpError(409, "Booking hold has already expired.");
+    }
+
+    const selectedProvider = String(provider || booking.payment_provider || "").trim().toLowerCase();
+
+    if (!selectedProvider || (selectedProvider !== "paypal" && selectedProvider !== "sumup")) {
+      throw new HttpError(400, "A valid payment provider is required to resume checkout.");
+    }
+
+    if (selectedProvider === "paypal") {
+      const checkout = await createPayPalPayment({
+        amount: Number(booking.amount),
+        currency: booking.currency,
+        description: buildCheckoutDescription(booking),
+        buyerEmail: booking.customer_email,
+        customData: {
+          bookingToken: booking.booking_token,
+          referenceId: "booking",
+        },
+        returnUrl: buildBookingSuccessUrl(booking.booking_token, "paypal"),
+        cancelUrl: buildBookingCancelUrl(booking.booking_token, "paypal"),
+      });
+
+      await attachPaymentReference({
+        bookingToken: booking.booking_token,
+        provider: "paypal",
+        paymentReference: checkout.externalId,
+      });
+
+      res.json({
+        bookingToken: booking.booking_token,
+        provider: "paypal",
+        checkoutUrl: checkout.checkoutUrl,
+      });
+      return;
+    }
+
+    const checkout = await createSumUpPayment({
+      amount: Number(booking.amount),
+      currency: booking.currency,
+      description: buildCheckoutDescription(booking),
+      buyerEmail: booking.customer_email,
+      customData: {
+        bookingToken: booking.booking_token,
+      },
+      redirectUrl: buildBookingSuccessUrl(booking.booking_token, "sumup"),
+    });
+
+    await attachPaymentReference({
+      bookingToken: booking.booking_token,
+      provider: "sumup",
+      paymentReference: checkout.checkoutId,
+    });
+
+    res.json({
+      bookingToken: booking.booking_token,
+      provider: "sumup",
+      checkoutId: checkout.checkoutId,
+      checkoutUrl: checkout.checkoutUrl,
     });
   } catch (error) {
     next(error);
