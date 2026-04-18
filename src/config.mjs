@@ -10,6 +10,8 @@ export const config = {
   cancelUrl: process.env.CANCEL_URL || "http://localhost:3000/paypal-cancel.html",
   bookingSuccessUrl: process.env.BOOKING_SUCCESS_URL || "http://localhost:3000/booking-success.html",
   bookingCancelUrl: process.env.BOOKING_CANCEL_URL || "http://localhost:3000/booking-cancel.html",
+  bookingAdminEmail: process.env.BOOKING_ADMIN_EMAIL || "info@punkatmusic.com",
+  adminBookingPassword: process.env.ADMIN_BOOKING_PASSWORD || "",
   databaseUrl: process.env.DATABASE_URL || "",
   smtp: {
     host: process.env.SMTP_HOST || "",
