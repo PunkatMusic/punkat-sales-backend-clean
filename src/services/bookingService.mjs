@@ -367,6 +367,23 @@ export async function getBookingByToken(bookingToken) {
   return result.rows[0] || null;
 }
 
+export async function cancelBookingHold({ bookingToken }) {
+  ensureDatabaseConfigured();
+
+  const result = await pool.query(
+    `update studio_bookings
+     set status = 'cancelled',
+         hold_expires_at = null,
+         updated_at = now()
+     where booking_token = $1
+       and status = 'hold'
+     returning *`,
+    [bookingToken]
+  );
+
+  return result.rows[0] || null;
+}
+
 export async function createAdminBooking(payload) {
   ensureDatabaseConfigured();
 
