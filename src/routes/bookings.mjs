@@ -5,6 +5,7 @@ import { createSumUpPayment, getSumUpCheckout } from "../services/sumupService.m
 import {
   attachPaymentReference,
   confirmBookingPayment,
+  createAdminBooking,
   createBookingHold,
   formatBookingSummary,
   getBookingByToken,
@@ -12,7 +13,7 @@ import {
   listAvailabilityForDate,
 } from "../services/bookingService.mjs";
 import { HttpError } from "../lib/httpError.mjs";
-import { sendBookingConfirmationEmail } from "../services/emailService.mjs";
+import { sendBookingAdminNotificationEmail, sendBookingConfirmationEmail } from "../services/emailService.mjs";
 
 export const bookingRouter = express.Router();
 
@@ -31,7 +32,7 @@ function buildBookingCancelUrl(bookingToken, provider) {
 }
 
 async function deliverBookingConfirmation(booking) {
-  await sendBookingConfirmationEmail({
+  const payload = {
     buyerEmail: booking.customer_email,
     customerName: booking.customer_name,
     serviceName: booking.service_name,
@@ -44,7 +45,11 @@ async function deliverBookingConfirmation(booking) {
     currency: booking.currency,
     customerPhone: booking.customer_phone,
     notes: booking.notes,
-  });
+    paymentProvider: booking.payment_provider,
+  };
+
+  await sendBookingConfirmationEmail(payload);
+  await sendBookingAdminNotificationEmail(payload);
 }
 
 bookingRouter.get("/config", (_req, res) => {
@@ -207,6 +212,30 @@ bookingRouter.post("/sumup/confirm", async (req, res, next) => {
     if (!booking.already_confirmed) {
       await deliverBookingConfirmation(booking);
     }
+
+    res.json({
+      ok: true,
+      booking: formatBookingSummary(booking),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/admin/create", async (req, res, next) => {
+  try {
+    const { adminPassword } = req.body || {};
+
+    if (!config.adminBookingPassword) {
+      throw new HttpError(503, "Admin booking password is not configured.");
+    }
+
+    if (!adminPassword || adminPassword !== config.adminBookingPassword) {
+      throw new HttpError(403, "Admin booking password is invalid.");
+    }
+
+    const booking = await createAdminBooking(req.body);
+    await deliverBookingConfirmation(booking);
 
     res.json({
       ok: true,
