@@ -47,8 +47,7 @@ export async function createSumUpPayment({
   redirectUrl,
 }) {
   const checkoutReference = encodeCheckoutReference({
-    ...customData,
-    buyerEmail,
+    bookingToken: customData?.bookingToken || null,
     nonce: crypto.randomUUID(),
   });
   const payload = await sumupFetch("/v0.1/checkouts", {

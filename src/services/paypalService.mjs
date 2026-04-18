@@ -69,8 +69,7 @@ export async function createPayPalPayment({
 }) {
   const accessToken = await getAccessToken();
   const customId = encodeCustomData({
-    ...customData,
-    buyerEmail,
+    bookingToken: customData?.bookingToken || null,
     nonce: crypto.randomUUID(),
   });
   const payload = await paypalFetch("/v2/checkout/orders", {
