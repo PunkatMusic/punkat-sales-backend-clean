@@ -8,6 +8,8 @@ export const config = {
   frontendOrigin: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
   successUrl: process.env.SUCCESS_URL || "http://localhost:3000/paypal-success.html",
   cancelUrl: process.env.CANCEL_URL || "http://localhost:3000/paypal-cancel.html",
+  bookingSuccessUrl: process.env.BOOKING_SUCCESS_URL || "http://localhost:3000/booking-success.html",
+  bookingCancelUrl: process.env.BOOKING_CANCEL_URL || "http://localhost:3000/booking-cancel.html",
   databaseUrl: process.env.DATABASE_URL || "",
   smtp: {
     host: process.env.SMTP_HOST || "",
