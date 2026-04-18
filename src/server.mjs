@@ -5,6 +5,7 @@ import { checkoutRouter } from "./routes/checkout.mjs";
 import { downloadRouter } from "./routes/download.mjs";
 import { licenseRouter } from "./routes/license.mjs";
 import { webhookRouter } from "./routes/webhooks.mjs";
+import { bookingRouter } from "./routes/bookings.mjs";
 
 const app = express();
 const allowedOrigins = new Set([
@@ -53,6 +54,7 @@ app.use("/api/checkout", checkoutRouter);
 app.use("/api/webhooks", webhookRouter);
 app.use("/api/download", downloadRouter);
 app.use("/api/license", licenseRouter);
+app.use("/api/bookings", bookingRouter);
 
 app.use((error, _req, res, _next) => {
   const statusCode = error.statusCode || 500;
