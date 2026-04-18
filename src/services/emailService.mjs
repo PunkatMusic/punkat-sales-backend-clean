@@ -110,3 +110,58 @@ export async function sendLicenseEmail({ buyerEmail, productName, serial, downlo
     delivered: true,
   };
 }
+
+export async function sendBookingConfirmationEmail({
+  buyerEmail,
+  customerName,
+  serviceName,
+  bookingDate,
+  startLabel,
+  endLabel,
+  durationHours,
+  participants,
+  amount,
+  currency,
+  customerPhone,
+  notes,
+}) {
+  if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+    return {
+      delivered: false,
+      reason: "SMTP is not configured yet.",
+    };
+  }
+
+  const subject = `${serviceName} booking confirmed`;
+  const text = [
+    `Hello ${customerName},`,
+    "",
+    "Your Punkat Music studio booking is confirmed.",
+    "",
+    `Service: ${serviceName}`,
+    `Date: ${bookingDate}`,
+    `Time: ${startLabel} - ${endLabel}`,
+    `Duration: ${durationHours} hour(s)`,
+    `Participants: ${participants}`,
+    `Paid: ${amount.toFixed(2)} ${currency}`,
+    customerPhone ? `Phone: ${customerPhone}` : null,
+    notes ? `Notes: ${notes}` : null,
+    "",
+    "If you need to change the booking, please contact us directly by phone or email.",
+    "",
+    signature,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await sendMailWithTimeout({
+    from: config.smtp.from,
+    to: buyerEmail,
+    subject,
+    text,
+  });
+
+  return {
+    delivered: true,
+  };
+}

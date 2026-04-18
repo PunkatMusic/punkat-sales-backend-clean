@@ -58,10 +58,18 @@ async function paypalFetch(path, { method = "GET", body, accessToken }) {
   return payload;
 }
 
-export async function createPayPalCheckout({ product, buyerEmail }) {
+export async function createPayPalPayment({
+  amount,
+  currency,
+  description,
+  buyerEmail,
+  customData,
+  returnUrl,
+  cancelUrl,
+}) {
   const accessToken = await getAccessToken();
   const customId = encodeCustomData({
-    productSlug: product.slug,
+    ...customData,
     buyerEmail,
     nonce: crypto.randomUUID(),
   });
@@ -72,12 +80,12 @@ export async function createPayPalCheckout({ product, buyerEmail }) {
       intent: "CAPTURE",
       purchase_units: [
         {
-          reference_id: product.slug,
+          reference_id: customData?.referenceId || description,
           custom_id: customId,
-          description: product.name,
+          description,
           amount: {
-            currency_code: product.currency,
-            value: product.price.toFixed(2),
+            currency_code: currency,
+            value: Number(amount).toFixed(2),
           },
         },
       ],
@@ -87,8 +95,8 @@ export async function createPayPalCheckout({ product, buyerEmail }) {
       application_context: {
         brand_name: "Punkat Music",
         user_action: "PAY_NOW",
-        return_url: config.successUrl,
-        cancel_url: config.cancelUrl,
+        return_url: returnUrl || config.successUrl,
+        cancel_url: cancelUrl || config.cancelUrl,
       },
     },
   });
@@ -105,6 +113,21 @@ export async function createPayPalCheckout({ product, buyerEmail }) {
     externalId: payload.id,
     customId,
   };
+}
+
+export async function createPayPalCheckout({ product, buyerEmail }) {
+  return createPayPalPayment({
+    amount: product.price,
+    currency: product.currency,
+    description: product.name,
+    buyerEmail,
+    customData: {
+      productSlug: product.slug,
+      referenceId: product.slug,
+    },
+    returnUrl: config.successUrl,
+    cancelUrl: config.cancelUrl,
+  });
 }
 
 export async function capturePayPalOrder(orderId) {

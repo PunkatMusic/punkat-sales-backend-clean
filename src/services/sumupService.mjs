@@ -38,9 +38,16 @@ async function sumupFetch(path, { method = "GET", body }) {
   return payload;
 }
 
-export async function createSumUpCheckout({ product, buyerEmail }) {
+export async function createSumUpPayment({
+  amount,
+  currency,
+  description,
+  buyerEmail,
+  customData,
+  redirectUrl,
+}) {
   const checkoutReference = encodeCheckoutReference({
-    productSlug: product.slug,
+    ...customData,
     buyerEmail,
     nonce: crypto.randomUUID(),
   });
@@ -48,12 +55,12 @@ export async function createSumUpCheckout({ product, buyerEmail }) {
     method: "POST",
     body: {
       checkout_reference: checkoutReference,
-      amount: product.price,
-      currency: product.currency,
+      amount,
+      currency,
       merchant_code: config.sumup.merchantCode,
-      description: product.name,
+      description,
       pay_to_email: "sales@punkatmusic.com",
-      redirect_url: config.successUrl,
+      redirect_url: redirectUrl || config.successUrl,
       hosted_checkout: {
         enabled: true,
       },
@@ -67,6 +74,19 @@ export async function createSumUpCheckout({ product, buyerEmail }) {
     checkoutReference,
     checkoutUrl: payload.hosted_checkout_url || null,
   };
+}
+
+export async function createSumUpCheckout({ product, buyerEmail }) {
+  return createSumUpPayment({
+    amount: product.price,
+    currency: product.currency,
+    description: product.name,
+    buyerEmail,
+    customData: {
+      productSlug: product.slug,
+    },
+    redirectUrl: config.successUrl,
+  });
 }
 
 export async function getSumUpCheckout(checkoutId) {
