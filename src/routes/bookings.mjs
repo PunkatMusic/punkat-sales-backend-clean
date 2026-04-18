@@ -97,8 +97,7 @@ bookingRouter.post("/paypal/create", async (req, res, next) => {
       buyerEmail: booking.customer_email,
       customData: {
         bookingToken: booking.booking_token,
-        serviceSlug: booking.service_slug,
-        referenceId: booking.service_slug,
+        referenceId: "booking",
       },
       returnUrl: successUrl,
       cancelUrl,
@@ -158,7 +157,6 @@ bookingRouter.post("/sumup/create", async (req, res, next) => {
       buyerEmail: booking.customer_email,
       customData: {
         bookingToken: booking.booking_token,
-        serviceSlug: booking.service_slug,
       },
       redirectUrl,
     });
