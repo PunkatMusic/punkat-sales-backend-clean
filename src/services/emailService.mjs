@@ -1,6 +1,19 @@
 import nodemailer from "nodemailer";
 import { config } from "../config.mjs";
 
+function formatBookingDate(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const text = String(value);
+  return text.length >= 10 ? text.slice(0, 10) : text;
+}
+
 const signature = [
   "Best regards,",
   "Tansel GUNAY - Punkat Music Sàrls",
@@ -132,6 +145,7 @@ export async function sendBookingConfirmationEmail({
     };
   }
 
+  const formattedBookingDate = formatBookingDate(bookingDate);
   const subject = `${serviceName} booking confirmed`;
   const text = [
     `Hello ${customerName},`,
@@ -139,7 +153,7 @@ export async function sendBookingConfirmationEmail({
     "Your Punkat Music studio booking is confirmed.",
     "",
     `Service: ${serviceName}`,
-    `Date: ${bookingDate}`,
+    `Date: ${formattedBookingDate}`,
     `Time: ${startLabel} - ${endLabel}`,
     `Duration: ${durationHours} hour(s)`,
     `Participants: ${participants}`,
@@ -188,14 +202,15 @@ export async function sendBookingAdminNotificationEmail({
     };
   }
 
-  const subject = `New booking confirmed: ${serviceName} | ${bookingDate} ${startLabel}`;
+  const formattedBookingDate = formatBookingDate(bookingDate);
+  const subject = `New booking confirmed: ${serviceName} | ${formattedBookingDate} ${startLabel}`;
   const text = [
     "Hello,",
     "",
     "A Punkat Music booking has been confirmed.",
     "",
     `Service: ${serviceName}`,
-    `Date: ${bookingDate}`,
+    `Date: ${formattedBookingDate}`,
     `Time: ${startLabel} - ${endLabel}`,
     `Duration: ${durationHours} hour(s)`,
     `Participants: ${participants}`,
