@@ -61,6 +61,34 @@ create table if not exists webhook_events (
   unique (provider, event_id)
 );
 
+create table if not exists studio_bookings (
+  id bigserial primary key,
+  booking_token text not null unique,
+  service_slug text not null,
+  service_name text not null,
+  customer_name text not null,
+  customer_email text not null,
+  customer_phone text,
+  participants integer not null default 1,
+  notes text,
+  booking_date date not null,
+  start_hour integer not null,
+  end_hour integer not null,
+  duration_hours integer not null,
+  amount numeric(10, 2) not null,
+  currency text not null default 'EUR',
+  status text not null,
+  payment_provider text,
+  payment_reference text unique,
+  hold_expires_at timestamptz,
+  paid_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint studio_bookings_hour_range check (start_hour >= 0 and end_hour <= 24 and end_hour > start_hour),
+  constraint studio_bookings_duration check (duration_hours = end_hour - start_hour),
+  constraint studio_bookings_participants check (participants >= 1 and participants <= 5)
+);
+
 insert into products (id, slug, code, name, price, currency, file_name)
-values ('surgeq-l5', 'surgeq-l5', 'SL5', 'SurgEQ-L5', 79.00, 'EUR', 'SurgEQ-L5-macOS.zip')
+values ('surgeq-l5', 'surgeq-l5', 'SL5', 'SurgEQ-L5', 19.00, 'EUR', 'SurgEQ-L5-macOS.zip')
 on conflict (id) do nothing;
