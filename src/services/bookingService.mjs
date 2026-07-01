@@ -3,6 +3,7 @@ import { pool } from "../db/client.mjs";
 import {
   BOOKING_HOLD_MINUTES,
   bookingServices,
+  getBookingDateOverride,
   getBookingServiceBySlug,
   isStudioClosedOnDate,
   STUDIO_TIMEZONE,
@@ -49,6 +50,32 @@ function parseInteger(value, fallback = null) {
 
 function formatHourLabel(hour) {
   return `${String(hour).padStart(2, "0")}:00`;
+}
+
+function getEffectiveServiceHours(service, bookingDate) {
+  const baseHours = service.hours[getDayType(bookingDate)];
+  const override = getBookingDateOverride(bookingDate);
+
+  if (!baseHours) {
+    return null;
+  }
+
+  let start = baseHours.start;
+  let end = baseHours.end;
+
+  if (override?.availableStartHour != null) {
+    start = Math.max(start, override.availableStartHour);
+  }
+
+  if (override?.availableEndHour != null) {
+    end = Math.min(end, override.availableEndHour);
+  }
+
+  if (start >= end) {
+    return null;
+  }
+
+  return { start, end };
 }
 
 export function serializeBookingService(service) {
@@ -129,8 +156,12 @@ export function validateBookingRequest(input) {
     }
   }
 
-  const hours = service.hours[getDayType(bookingDate)];
+  const hours = getEffectiveServiceHours(service, bookingDate);
   const endHour = startHour + durationHours;
+
+  if (!hours) {
+    throw new HttpError(400, "The studio is unavailable on the selected date.");
+  }
 
   if (startHour < hours.start || endHour > hours.end) {
     throw new HttpError(400, "Selected time is outside the service availability window.");
@@ -211,7 +242,16 @@ export async function listAvailabilityForDate({ serviceSlug, bookingDate }) {
   }
 
   const now = getLuxembourgNowParts();
-  const hours = service.hours[getDayType(bookingDate)];
+  const hours = getEffectiveServiceHours(service, bookingDate);
+
+  if (!hours) {
+    return {
+      service: serializeBookingService(service),
+      bookingDate,
+      slots: [],
+    };
+  }
+
   const result = await pool.query(
     `select start_hour, end_hour
      from studio_bookings
