@@ -52,6 +52,9 @@ function formatHourLabel(hour) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
+const STUDIO_CLOSURE_SLUG = "studio-closure";
+const STUDIO_CLOSURE_NAME = "Studio unavailable";
+
 function getEffectiveServiceHours(service, bookingDate) {
   const baseHours = service.hours[getDayType(bookingDate)];
   const override = getBookingDateOverride(bookingDate);
@@ -541,6 +544,174 @@ export async function createAdminBooking(payload) {
   } finally {
     client.release();
   }
+}
+
+function iterateDateRange(startDate, endDate) {
+  const dates = [];
+
+  for (
+    let cursor = new Date(`${startDate}T12:00:00Z`);
+    cursor <= new Date(`${endDate}T12:00:00Z`);
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  ) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+
+  return dates;
+}
+
+export async function listStudioClosures({ fromDate, toDate }) {
+  ensureDatabaseConfigured();
+
+  const result = await pool.query(
+    `select *
+     from studio_bookings
+     where service_slug = $1
+       and booking_date >= $2
+       and booking_date <= $3
+       and status = 'confirmed'
+     order by booking_date asc, start_hour asc`,
+    [STUDIO_CLOSURE_SLUG, fromDate, toDate]
+  );
+
+  return result.rows;
+}
+
+export async function createStudioClosures({
+  startDate,
+  endDate,
+  availableStartHour = null,
+  availableEndHour = null,
+  note = "",
+}) {
+  ensureDatabaseConfigured();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || "")) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endDate || ""))) {
+    throw new HttpError(400, "Start and end dates must be YYYY-MM-DD.");
+  }
+
+  if (endDate < startDate) {
+    throw new HttpError(400, "End date cannot be earlier than start date.");
+  }
+
+  const normalizedAvailableStart = parseInteger(availableStartHour);
+  const normalizedAvailableEnd = parseInteger(availableEndHour);
+
+  let closureStartHour = 0;
+  let closureEndHour = 24;
+  let closureLabel = "Full day closure";
+
+  if (normalizedAvailableStart != null && normalizedAvailableEnd != null) {
+    throw new HttpError(400, "Use either availableStartHour or availableEndHour, not both.");
+  }
+
+  if (normalizedAvailableStart != null) {
+    if (normalizedAvailableStart < 0 || normalizedAvailableStart > 24) {
+      throw new HttpError(400, "availableStartHour must be between 0 and 24.");
+    }
+    closureStartHour = 0;
+    closureEndHour = normalizedAvailableStart;
+    closureLabel = `Open from ${formatHourLabel(normalizedAvailableStart)}`;
+  }
+
+  if (normalizedAvailableEnd != null) {
+    if (normalizedAvailableEnd < 0 || normalizedAvailableEnd > 24) {
+      throw new HttpError(400, "availableEndHour must be between 0 and 24.");
+    }
+    closureStartHour = normalizedAvailableEnd;
+    closureEndHour = 24;
+    closureLabel = `Open until ${formatHourLabel(normalizedAvailableEnd)}`;
+  }
+
+  if (closureStartHour >= closureEndHour) {
+    throw new HttpError(400, "The selected availability rule leaves no closed hours.");
+  }
+
+  const dates = iterateDateRange(startDate, endDate);
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+
+    const created = await withStudioLock(client, async () => {
+      const rows = [];
+
+      for (const bookingDate of dates) {
+        const conflict = await findConflictingBooking(client, bookingDate, closureStartHour, closureEndHour);
+
+        if (conflict) {
+          throw new HttpError(409, `A booking already exists inside the closure window for ${bookingDate}.`);
+        }
+
+        const bookingToken = crypto.randomUUID();
+        const result = await client.query(
+          `insert into studio_bookings (
+             booking_token,
+             service_slug,
+             service_name,
+             customer_name,
+             customer_email,
+             customer_phone,
+             participants,
+             notes,
+             booking_date,
+             start_hour,
+             end_hour,
+             duration_hours,
+             amount,
+             currency,
+             status,
+             payment_provider,
+             payment_reference,
+             paid_at,
+             hold_expires_at
+           )
+           values ($1, $2, $3, $4, $5, null, 1, $6, $7, $8, $9, $10, 0, 'EUR', 'confirmed', 'manual', $11, now(), null)
+           returning *`,
+          [
+            bookingToken,
+            STUDIO_CLOSURE_SLUG,
+            STUDIO_CLOSURE_NAME,
+            "Punkat Admin",
+            config.bookingAdminEmail,
+            note ? `${closureLabel} | ${note}` : closureLabel,
+            bookingDate,
+            closureStartHour,
+            closureEndHour,
+            closureEndHour - closureStartHour,
+            `closure_${bookingDate}_${closureStartHour}_${closureEndHour}_${Date.now()}`,
+          ]
+        );
+
+        rows.push(result.rows[0]);
+      }
+
+      return rows;
+    });
+
+    await client.query("commit");
+    return created;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteStudioClosure({ bookingToken }) {
+  ensureDatabaseConfigured();
+
+  const result = await pool.query(
+    `delete from studio_bookings
+     where booking_token = $1
+       and service_slug = $2
+       and status = 'confirmed'
+     returning *`,
+    [bookingToken, STUDIO_CLOSURE_SLUG]
+  );
+
+  return result.rows[0] || null;
 }
 
 export async function confirmBookingPayment({ bookingToken, paymentReference, provider }) {
