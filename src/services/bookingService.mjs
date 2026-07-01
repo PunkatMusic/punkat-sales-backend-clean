@@ -1,6 +1,12 @@
 import crypto from "crypto";
 import { pool } from "../db/client.mjs";
-import { BOOKING_HOLD_MINUTES, bookingServices, getBookingServiceBySlug, STUDIO_TIMEZONE } from "../bookingConfig.mjs";
+import {
+  BOOKING_HOLD_MINUTES,
+  bookingServices,
+  getBookingServiceBySlug,
+  isStudioClosedOnDate,
+  STUDIO_TIMEZONE,
+} from "../bookingConfig.mjs";
 import { HttpError } from "../lib/httpError.mjs";
 import { config } from "../config.mjs";
 
@@ -98,6 +104,10 @@ export function validateBookingRequest(input) {
     throw new HttpError(400, "Booking date must be provided as YYYY-MM-DD.");
   }
 
+  if (isStudioClosedOnDate(bookingDate)) {
+    throw new HttpError(400, "The studio is unavailable on the selected date.");
+  }
+
   if (!Number.isInteger(startHour) || !Number.isInteger(durationHours)) {
     throw new HttpError(400, "Start hour and duration must be whole hours.");
   }
@@ -190,6 +200,14 @@ export async function listAvailabilityForDate({ serviceSlug, bookingDate }) {
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) {
     throw new HttpError(400, "Date must be provided as YYYY-MM-DD.");
+  }
+
+  if (isStudioClosedOnDate(bookingDate)) {
+    return {
+      service: serializeBookingService(service),
+      bookingDate,
+      slots: [],
+    };
   }
 
   const now = getLuxembourgNowParts();
