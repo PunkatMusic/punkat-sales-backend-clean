@@ -9,10 +9,13 @@ import {
   confirmBookingPayment,
   createAdminBooking,
   createBookingHold,
+  createStudioClosures,
+  deleteStudioClosure,
   formatBookingSummary,
   getBookingByToken,
   getLatestActiveHoldByEmail,
   getPublicBookingServices,
+  listStudioClosures,
   listAvailabilityForDate,
 } from "../services/bookingService.mjs";
 import { HttpError } from "../lib/httpError.mjs";
@@ -74,6 +77,16 @@ async function deliverBookingConfirmation(booking) {
 
   await sendBookingConfirmationEmail(payload);
   await sendBookingAdminNotificationEmail(payload);
+}
+
+function ensureAdminPassword(adminPassword) {
+  if (!config.adminBookingPassword) {
+    throw new HttpError(503, "Admin booking password is not configured.");
+  }
+
+  if (!adminPassword || adminPassword !== config.adminBookingPassword) {
+    throw new HttpError(403, "Admin booking password is invalid.");
+  }
 }
 
 bookingRouter.get("/config", (_req, res) => {
@@ -367,14 +380,7 @@ bookingRouter.post("/sumup/confirm", async (req, res, next) => {
 bookingRouter.post("/admin/create", async (req, res, next) => {
   try {
     const { adminPassword } = req.body || {};
-
-    if (!config.adminBookingPassword) {
-      throw new HttpError(503, "Admin booking password is not configured.");
-    }
-
-    if (!adminPassword || adminPassword !== config.adminBookingPassword) {
-      throw new HttpError(403, "Admin booking password is invalid.");
-    }
+    ensureAdminPassword(adminPassword);
 
     const booking = await createAdminBooking(req.body);
     await deliverBookingConfirmation(booking);
@@ -382,6 +388,67 @@ bookingRouter.post("/admin/create", async (req, res, next) => {
     res.json({
       ok: true,
       booking: formatBookingSummary(booking),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/admin/closures/list", async (req, res, next) => {
+  try {
+    const { adminPassword, fromDate, toDate } = req.body || {};
+    ensureAdminPassword(adminPassword);
+
+    const closures = await listStudioClosures({
+      fromDate: String(fromDate || ""),
+      toDate: String(toDate || ""),
+    });
+
+    res.json({
+      ok: true,
+      closures: closures.map((booking) => formatBookingSummary(booking)),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/admin/closures/create", async (req, res, next) => {
+  try {
+    const { adminPassword, startDate, endDate, availableStartHour, availableEndHour, note } = req.body || {};
+    ensureAdminPassword(adminPassword);
+
+    const closures = await createStudioClosures({
+      startDate: String(startDate || ""),
+      endDate: String(endDate || startDate || ""),
+      availableStartHour,
+      availableEndHour,
+      note: String(note || ""),
+    });
+
+    res.json({
+      ok: true,
+      closures: closures.map((booking) => formatBookingSummary(booking)),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/admin/closures/delete", async (req, res, next) => {
+  try {
+    const { adminPassword, bookingToken } = req.body || {};
+    ensureAdminPassword(adminPassword);
+
+    const deleted = await deleteStudioClosure({ bookingToken: String(bookingToken || "") });
+
+    if (!deleted) {
+      throw new HttpError(404, "Closure was not found.");
+    }
+
+    res.json({
+      ok: true,
+      closure: formatBookingSummary(deleted),
     });
   } catch (error) {
     next(error);
