@@ -1,4 +1,5 @@
 import express from "express";
+import { BOOKING_HOLD_MINUTES, getBookingClosures } from "../bookingConfig.mjs";
 import { config } from "../config.mjs";
 import { createPayPalPayment, capturePayPalOrder } from "../services/paypalService.mjs";
 import { createSumUpPayment, getSumUpCheckout } from "../services/sumupService.mjs";
@@ -78,8 +79,9 @@ async function deliverBookingConfirmation(booking) {
 bookingRouter.get("/config", (_req, res) => {
   res.json({
     timezone: "Europe/Luxembourg",
-    holdMinutes: 20,
+    holdMinutes: BOOKING_HOLD_MINUTES,
     services: getPublicBookingServices(),
+    closures: getBookingClosures(),
   });
 });
 
