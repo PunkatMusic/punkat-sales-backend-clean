@@ -63,7 +63,7 @@ export const bookingServices = [
   {
     slug: "mix-mastering",
     name: "Edit / Mix / Mastering",
-    rate: 20,
+    rate: 40,
     currency: "EUR",
     minimumHours: 1,
     pricingModel: "hourly",
