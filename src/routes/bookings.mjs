@@ -17,9 +17,14 @@ import {
   getPublicBookingServices,
   listStudioClosures,
   listAvailabilityForDate,
+  validateBookingRequest,
 } from "../services/bookingService.mjs";
 import { HttpError } from "../lib/httpError.mjs";
-import { sendBookingAdminNotificationEmail, sendBookingConfirmationEmail } from "../services/emailService.mjs";
+import {
+  sendBookingAdminNotificationEmail,
+  sendBookingConfirmationEmail,
+  sendOtherServiceRequestEmails,
+} from "../services/emailService.mjs";
 
 export const bookingRouter = express.Router();
 
@@ -107,6 +112,25 @@ bookingRouter.get("/availability", async (req, res, next) => {
     });
 
     res.json(availability);
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/other-services-request", async (req, res, next) => {
+  try {
+    const request = validateBookingRequest(req.body);
+
+    if (request.service.slug !== "other-services") {
+      throw new HttpError(400, "This endpoint is only for Other Services requests.");
+    }
+
+    if (!request.notes) {
+      throw new HttpError(400, "Please tell us which service you need.");
+    }
+
+    await sendOtherServiceRequestEmails(request);
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }
