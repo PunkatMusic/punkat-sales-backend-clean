@@ -49,6 +49,10 @@ export const bookingServices = [
     slug: "recording",
     name: "Recording Session",
     rate: 20,
+    rateOptions: [
+      { id: "studio-only", name: "Studio & equipment only", rate: 20 },
+      { id: "with-engineer", name: "With recording assistance", rate: 40 },
+    ],
     currency: "EUR",
     minimumHours: 1,
     maximumHours: 6,
