@@ -237,3 +237,65 @@ export async function sendBookingAdminNotificationEmail({
     delivered: true,
   };
 }
+
+export async function sendOtherServiceRequestEmails({
+  customerName,
+  customerEmail,
+  customerPhone,
+  bookingDate,
+  startHour,
+  endHour,
+  durationHours,
+  notes,
+}) {
+  if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+    return { delivered: false, reason: "SMTP is not configured yet." };
+  }
+
+  const formattedBookingDate = formatBookingDate(bookingDate);
+  const startLabel = `${String(startHour).padStart(2, "0")}:00`;
+  const endLabel = `${String(endHour).padStart(2, "0")}:00`;
+  const requestDetails = notes || "No service details were provided.";
+
+  await sendMailWithTimeout({
+    from: config.smtp.from,
+    to: config.bookingAdminEmail,
+    subject: `New other-services request | ${formattedBookingDate} ${startLabel}`,
+    text: [
+      "Hello,",
+      "",
+      "A customer has sent an Other Services availability request.",
+      "This is not a confirmed booking and does not reserve the time slot.",
+      "",
+      `Requested date: ${formattedBookingDate}`,
+      `Requested time: ${startLabel} - ${endLabel}`,
+      `Requested duration: ${durationHours} hour(s)`,
+      `Customer: ${customerName}`,
+      `Email: ${customerEmail}`,
+      customerPhone ? `Phone: ${customerPhone}` : null,
+      `Requested service: ${requestDetails}`,
+      "",
+      signature,
+    ].filter(Boolean).join("\n"),
+  });
+
+  await sendMailWithTimeout({
+    from: config.smtp.from,
+    to: customerEmail,
+    subject: "Punkat Music service request received",
+    text: [
+      `Hello ${customerName},`,
+      "",
+      "We received your service request.",
+      `Requested date: ${formattedBookingDate}`,
+      `Requested time: ${startLabel} - ${endLabel}`,
+      `Requested duration: ${durationHours} hour(s)`,
+      "",
+      "This is a request only. The time is not reserved until Punkat Music confirms it with you.",
+      "",
+      signature,
+    ].join("\n"),
+  });
+
+  return { delivered: true };
+}
