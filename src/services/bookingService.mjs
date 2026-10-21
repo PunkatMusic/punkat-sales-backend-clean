@@ -86,6 +86,7 @@ export function serializeBookingService(service) {
     slug: service.slug,
     name: service.name,
     rate: service.rate,
+    rateOptions: service.rateOptions || null,
     currency: service.currency,
     minimumHours: service.minimumHours,
     maximumHours: service.maximumHours ?? null,
@@ -104,6 +105,20 @@ export function calculateBookingAmount(service, durationHours, participants) {
   }
 
   return service.rate * durationHours;
+}
+
+function getBookingRateOption(service, rateOptionId) {
+  if (!service.rateOptions?.length) {
+    return { id: null, name: null, rate: service.rate };
+  }
+
+  const selectedOption = service.rateOptions.find((option) => option.id === rateOptionId);
+
+  if (!selectedOption) {
+    throw new HttpError(400, "Please choose a valid recording option.");
+  }
+
+  return selectedOption;
 }
 
 export function validateBookingRequest(input) {
@@ -125,6 +140,7 @@ export function validateBookingRequest(input) {
   const startHour = parseInteger(input?.startHour);
   const durationHours = parseInteger(input?.durationHours);
   const participants = parseInteger(input?.participants, 1);
+  const rateOption = getBookingRateOption(service, String(input?.rateOptionId || ""));
 
   if (!customerName || !customerEmail) {
     throw new HttpError(400, "Customer name and email are required.");
@@ -188,6 +204,8 @@ export function validateBookingRequest(input) {
 
   return {
     service,
+    serviceName: rateOption.name ? `${service.name} - ${rateOption.name}` : service.name,
+    rateOption,
     customerName,
     customerEmail,
     customerPhone,
@@ -197,7 +215,7 @@ export function validateBookingRequest(input) {
     endHour,
     durationHours,
     participants: normalizedParticipants,
-    amount: calculateBookingAmount(service, durationHours, normalizedParticipants),
+    amount: calculateBookingAmount({ ...service, rate: rateOption.rate }, durationHours, normalizedParticipants),
     currency: service.currency,
   };
 }
@@ -363,7 +381,7 @@ export async function createBookingHold(payload) {
         [
           bookingToken,
           booking.service.slug,
-          booking.service.name,
+          booking.serviceName,
           booking.customerName,
           booking.customerEmail,
           booking.customerPhone || null,
@@ -517,7 +535,7 @@ export async function createAdminBooking(payload) {
         [
           bookingToken,
           booking.service.slug,
-          booking.service.name,
+          booking.serviceName,
           booking.customerName,
           booking.customerEmail,
           booking.customerPhone || null,
