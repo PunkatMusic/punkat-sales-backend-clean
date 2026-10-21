@@ -65,6 +65,22 @@ export const bookingServices = [
     description: "Recording service in the studio.",
   },
   {
+    slug: "other-services",
+    name: "Other Services Request",
+    rate: 0,
+    currency: "EUR",
+    minimumHours: 1,
+    maximumHours: 14,
+    pricingModel: "hourly",
+    bookable: true,
+    contactOnly: true,
+    hours: {
+      weekday: { start: 10, end: 24 },
+      weekend: { start: 10, end: 24 },
+    },
+    description: "Choose an available time and send us your service request. No online payment is required.",
+  },
+  {
     slug: "mix-mastering",
     name: "Edit / Mix / Mastering",
     rate: 40,
