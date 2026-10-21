@@ -61,25 +61,6 @@ export const bookingServices = [
     description: "Recording service in the studio.",
   },
   {
-    slug: "rehearsal",
-    name: "Rehearsal Session",
-    rate: 5,
-    currency: "EUR",
-    minimumHours: 1,
-    maximumHours: 14,
-    pricingModel: "per_person_hour",
-    participants: {
-      min: 1,
-      max: 5,
-    },
-    bookable: true,
-    hours: {
-      weekday: { start: 18, end: 24 },
-      weekend: { start: 10, end: 24 },
-    },
-    description: "Rehearsal room booking for up to 5 people.",
-  },
-  {
     slug: "mix-mastering",
     name: "Edit / Mix / Mastering",
     rate: 20,
