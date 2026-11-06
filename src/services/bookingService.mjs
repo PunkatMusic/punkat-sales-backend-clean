@@ -620,7 +620,13 @@ export async function listConfirmedBookings() {
      from studio_bookings
      where status = 'confirmed'
        and service_slug <> $1
-       and booking_date >= current_date
+       and (
+         booking_date > (now() at time zone 'Europe/Luxembourg')::date
+         or (
+           booking_date = (now() at time zone 'Europe/Luxembourg')::date
+           and start_hour > extract(hour from now() at time zone 'Europe/Luxembourg')::integer
+         )
+       )
      order by booking_date asc, start_hour asc`,
     [STUDIO_CLOSURE_SLUG]
   );
