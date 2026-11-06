@@ -68,6 +68,7 @@ create table if not exists studio_bookings (
   service_name text not null,
   customer_name text not null,
   customer_email text not null,
+  customer_language text not null default 'en',
   customer_phone text,
   participants integer not null default 1,
   notes text,
@@ -88,6 +89,9 @@ create table if not exists studio_bookings (
   constraint studio_bookings_duration check (duration_hours = end_hour - start_hour),
   constraint studio_bookings_participants check (participants >= 1 and participants <= 5)
 );
+
+alter table studio_bookings
+  add column if not exists customer_language text not null default 'en';
 
 insert into products (id, slug, code, name, price, currency, file_name)
 values ('surgeq-l5', 'surgeq-l5', 'SL5', 'SurgEQ-L5', 19.00, 'EUR', 'SurgEQ-L5-macOS.zip')
