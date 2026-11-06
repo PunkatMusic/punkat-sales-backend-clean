@@ -612,6 +612,39 @@ export async function listApprovalPendingBookings() {
   return result.rows;
 }
 
+export async function listConfirmedBookings() {
+  ensureDatabaseConfigured();
+
+  const result = await pool.query(
+    `select *
+     from studio_bookings
+     where status = 'confirmed'
+       and service_slug <> $1
+       and booking_date >= current_date
+     order by booking_date asc, start_hour asc`,
+    [STUDIO_CLOSURE_SLUG]
+  );
+
+  return result.rows;
+}
+
+export async function cancelConfirmedBooking({ bookingToken }) {
+  ensureDatabaseConfigured();
+
+  const result = await pool.query(
+    `update studio_bookings
+     set status = 'cancelled',
+         updated_at = now()
+     where booking_token = $1
+       and status = 'confirmed'
+       and service_slug <> $2
+     returning *`,
+    [bookingToken, STUDIO_CLOSURE_SLUG]
+  );
+
+  return result.rows[0] || null;
+}
+
 export async function createAdminBooking(payload) {
   ensureDatabaseConfigured();
 

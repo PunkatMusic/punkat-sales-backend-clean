@@ -36,6 +36,8 @@ const bookingEmailCopy = {
     declined: "Unfortunately, we could not confirm your requested booking for",
     declinedSubject: "Booking request not confirmed",
     released: "The time slot has been released. Please contact us if you would like to find another time.",
+    cancelledConfirmed: "Your confirmed booking has been cancelled.",
+    cancelledConfirmedSubject: "Confirmed booking cancelled",
   },
   fr: {
     confirmed: "Votre réservation au studio Punkat Music est confirmée.",
@@ -47,6 +49,8 @@ const bookingEmailCopy = {
     declined: "Nous n'avons malheureusement pas pu confirmer votre demande de réservation pour le",
     declinedSubject: "Demande de réservation non confirmée",
     released: "Le créneau a été libéré. Contactez-nous si vous souhaitez trouver un autre horaire.",
+    cancelledConfirmed: "Votre réservation confirmée a été annulée.",
+    cancelledConfirmedSubject: "Réservation confirmée annulée",
   },
   tr: {
     confirmed: "Punkat Music stüdyo rezervasyonunuz onaylandı.",
@@ -58,6 +62,8 @@ const bookingEmailCopy = {
     declined: "Maalesef şu tarih ve saat için rezervasyon talebinizi onaylayamadık:",
     declinedSubject: "Rezervasyon talebi onaylanmadı",
     released: "Slot tekrar müsait hale getirildi. Başka bir saat bulmak için bizimle iletişime geçebilirsiniz.",
+    cancelledConfirmed: "Onaylanmış rezervasyonunuz iptal edildi.",
+    cancelledConfirmedSubject: "Onaylanmış rezervasyon iptal edildi",
   },
 };
 
@@ -367,6 +373,33 @@ export async function sendBookingRequestCancellationEmail({ buyerEmail, customer
       `Hello ${customerName},`,
       "",
       `${copy.declined} ${formatBookingDate(bookingDate)} ${startLabel} - ${endLabel}.`,
+      copy.released,
+      "",
+      signature,
+    ].join("\n"),
+  });
+
+  return { delivered: true };
+}
+
+export async function sendConfirmedBookingCancellationEmail({ buyerEmail, customerName, customerLanguage, serviceName, bookingDate, startLabel, endLabel }) {
+  if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+    return { delivered: false, reason: "SMTP is not configured yet." };
+  }
+
+  const copy = getBookingEmailCopy(customerLanguage);
+
+  await sendMailWithTimeout({
+    from: config.smtp.from,
+    to: buyerEmail,
+    subject: `${copy.cancelledConfirmedSubject}: ${serviceName}`,
+    text: [
+      `Hello ${customerName},`,
+      "",
+      copy.cancelledConfirmed,
+      `Date: ${formatBookingDate(bookingDate)}`,
+      `Time: ${startLabel} - ${endLabel}`,
+      "",
       copy.released,
       "",
       signature,
