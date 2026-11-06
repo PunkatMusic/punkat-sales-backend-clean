@@ -135,6 +135,9 @@ export function validateBookingRequest(input) {
   const customerName = String(input?.customerName || "").trim();
   const customerEmail = String(input?.customerEmail || "").trim().toLowerCase();
   const customerPhone = String(input?.customerPhone || "").trim();
+  const customerLanguage = ["en", "fr", "tr"].includes(String(input?.language || ""))
+    ? String(input.language)
+    : "en";
   const notes = String(input?.notes || "").trim();
   const bookingDate = String(input?.bookingDate || "").trim();
   const startHour = parseInteger(input?.startHour);
@@ -209,6 +212,7 @@ export function validateBookingRequest(input) {
     customerName,
     customerEmail,
     customerPhone,
+    customerLanguage,
     notes,
     bookingDate,
     startHour,
@@ -230,7 +234,7 @@ async function findConflictingBooking(client, bookingDate, startHour, endHour) {
     `select id
      from studio_bookings
      where booking_date = $1
-       and status in ('hold', 'confirmed')
+       and status in ('hold', 'payment_pending', 'approval_pending', 'confirmed')
        and (status <> 'hold' or hold_expires_at > now())
        and start_hour < $3
        and end_hour > $2
@@ -277,7 +281,7 @@ export async function listAvailabilityForDate({ serviceSlug, bookingDate }) {
     `select start_hour, end_hour
      from studio_bookings
      where booking_date = $1
-       and status in ('hold', 'confirmed')
+       and status in ('hold', 'payment_pending', 'approval_pending', 'confirmed')
        and (status <> 'hold' or hold_expires_at > now())
      order by start_hour asc`,
     [bookingDate]
@@ -410,6 +414,76 @@ export async function createBookingHold(payload) {
   }
 }
 
+function createPaymentReference() {
+  return `PM-${crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+}
+
+export async function createBookingRequest(payload) {
+  ensureDatabaseConfigured();
+
+  const booking = validateBookingRequest(payload);
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+
+    const created = await withStudioLock(client, async () => {
+      const conflict = await findConflictingBooking(
+        client,
+        booking.bookingDate,
+        booking.startHour,
+        booking.endHour
+      );
+
+      if (conflict) {
+        throw new HttpError(409, "Selected slot is no longer available.");
+      }
+
+      const bookingToken = crypto.randomUUID();
+      const paymentReference = createPaymentReference();
+      const result = await client.query(
+        `insert into studio_bookings (
+           booking_token, service_slug, service_name, customer_name, customer_email, customer_language,
+           customer_phone, participants, notes, booking_date, start_hour, end_hour,
+           duration_hours, amount, currency, status, payment_provider, payment_reference,
+           hold_expires_at
+         )
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                 'approval_pending', 'pay_at_studio', $16, null)
+         returning *`,
+        [
+          bookingToken,
+          booking.service.slug,
+          booking.serviceName,
+          booking.customerName,
+          booking.customerEmail,
+          booking.customerLanguage,
+          booking.customerPhone || null,
+          booking.participants,
+          booking.notes || null,
+          booking.bookingDate,
+          booking.startHour,
+          booking.endHour,
+          booking.durationHours,
+          booking.amount,
+          booking.currency,
+          paymentReference,
+        ]
+      );
+
+      return result.rows[0];
+    });
+
+    await client.query("commit");
+    return created;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function attachPaymentReference({ bookingToken, provider, paymentReference }) {
   ensureDatabaseConfigured();
 
@@ -459,8 +533,7 @@ export async function getLatestActiveHoldByEmail(customerEmail) {
     `select *
      from studio_bookings
      where customer_email = $1
-       and status = 'hold'
-       and hold_expires_at > now()
+       and (status in ('payment_pending', 'approval_pending') or (status = 'hold' and hold_expires_at > now()))
      order by created_at desc
      limit 1`,
     [normalizedEmail]
@@ -478,12 +551,65 @@ export async function cancelBookingHold({ bookingToken }) {
          hold_expires_at = null,
          updated_at = now()
      where booking_token = $1
-       and status = 'hold'
+       and status in ('hold', 'payment_pending', 'approval_pending')
      returning *`,
     [bookingToken]
   );
 
   return result.rows[0] || null;
+}
+
+export async function confirmBookingRequest({ bookingToken }) {
+  ensureDatabaseConfigured();
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+    const confirmed = await withStudioLock(client, async () => {
+      const lookup = await client.query(
+        `select * from studio_bookings where booking_token = $1 limit 1`,
+        [bookingToken]
+      );
+      const booking = lookup.rows[0] || null;
+
+      if (!booking || booking.status !== "approval_pending") {
+        throw new HttpError(404, "Booking request was not found or is no longer pending.");
+      }
+
+      const result = await client.query(
+        `update studio_bookings
+         set status = 'confirmed',
+             payment_provider = 'pay_at_studio',
+             hold_expires_at = null,
+             updated_at = now()
+         where id = $1
+         returning *`,
+        [booking.id]
+      );
+      return result.rows[0];
+    });
+
+    await client.query("commit");
+    return confirmed;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listApprovalPendingBookings() {
+  ensureDatabaseConfigured();
+
+  const result = await pool.query(
+    `select *
+     from studio_bookings
+     where status = 'approval_pending'
+     order by created_at desc`
+  );
+
+  return result.rows;
 }
 
 export async function createAdminBooking(payload) {
@@ -776,8 +902,11 @@ export async function confirmBookingPayment({ bookingToken, paymentReference, pr
         };
       }
 
-      if (booking.status !== "hold" || !booking.hold_expires_at || new Date(booking.hold_expires_at) <= new Date()) {
-        throw new HttpError(409, "Booking hold expired before payment confirmation.");
+      const activeTemporaryHold = booking.status === "hold" && booking.hold_expires_at && new Date(booking.hold_expires_at) > new Date();
+      const manualPaymentPending = booking.status === "payment_pending";
+
+      if (!activeTemporaryHold && !manualPaymentPending) {
+        throw new HttpError(409, "Booking is no longer awaiting payment confirmation.");
       }
 
       const conflict = await client.query(
@@ -829,6 +958,7 @@ export function formatBookingSummary(booking) {
     serviceName: booking.service_name,
     customerName: booking.customer_name,
     customerEmail: booking.customer_email,
+    customerLanguage: booking.customer_language,
     customerPhone: booking.customer_phone,
     participants: booking.participants,
     notes: booking.notes,
@@ -842,6 +972,7 @@ export function formatBookingSummary(booking) {
     currency: booking.currency,
     status: booking.status,
     paymentProvider: booking.payment_provider,
+    paymentReference: booking.payment_reference,
     paidAt: booking.paid_at,
     holdExpiresAt: booking.hold_expires_at,
   };

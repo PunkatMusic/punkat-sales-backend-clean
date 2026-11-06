@@ -25,6 +25,46 @@ const signature = [
   "L-7327 Steinsel LUXEMBOURG",
 ].join("\n");
 
+const bookingEmailCopy = {
+  en: {
+    confirmed: "Your Punkat Music studio booking is confirmed.",
+    confirmedSubject: "Booking confirmed",
+    requestReceived: "We received your booking request and the selected time is reserved while Punkat Music reviews it.",
+    requestSubject: "Booking request received",
+    requestNext: "You will receive a separate email confirming or declining this request.",
+    paymentDue: "Payment due at the studio",
+    declined: "Unfortunately, we could not confirm your requested booking for",
+    declinedSubject: "Booking request not confirmed",
+    released: "The time slot has been released. Please contact us if you would like to find another time.",
+  },
+  fr: {
+    confirmed: "Votre réservation au studio Punkat Music est confirmée.",
+    confirmedSubject: "Réservation confirmée",
+    requestReceived: "Nous avons reçu votre demande de réservation. Le créneau est réservé pendant que Punkat Music l'examine.",
+    requestSubject: "Demande de réservation reçue",
+    requestNext: "Vous recevrez un email séparé confirmant ou refusant cette demande.",
+    paymentDue: "Paiement à effectuer au studio",
+    declined: "Nous n'avons malheureusement pas pu confirmer votre demande de réservation pour le",
+    declinedSubject: "Demande de réservation non confirmée",
+    released: "Le créneau a été libéré. Contactez-nous si vous souhaitez trouver un autre horaire.",
+  },
+  tr: {
+    confirmed: "Punkat Music stüdyo rezervasyonunuz onaylandı.",
+    confirmedSubject: "Rezervasyon onaylandı",
+    requestReceived: "Rezervasyon talebinizi aldık. Punkat Music inceleme yaparken seçtiğiniz saat rezerve edildi.",
+    requestSubject: "Rezervasyon talebi alındı",
+    requestNext: "Talebinizin onaylandığını veya reddedildiğini bildiren ayrı bir email alacaksınız.",
+    paymentDue: "Stüdyoda ödenecek tutar",
+    declined: "Maalesef şu tarih ve saat için rezervasyon talebinizi onaylayamadık:",
+    declinedSubject: "Rezervasyon talebi onaylanmadı",
+    released: "Slot tekrar müsait hale getirildi. Başka bir saat bulmak için bizimle iletişime geçebilirsiniz.",
+  },
+};
+
+function getBookingEmailCopy(language) {
+  return bookingEmailCopy[language] || bookingEmailCopy.en;
+}
+
 function createTransporter() {
   return nodemailer.createTransport({
     host: config.smtp.host,
@@ -136,6 +176,7 @@ export async function sendBookingConfirmationEmail({
   amount,
   currency,
   customerPhone,
+  customerLanguage,
   notes,
 }) {
   if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
@@ -146,18 +187,19 @@ export async function sendBookingConfirmationEmail({
   }
 
   const formattedBookingDate = formatBookingDate(bookingDate);
-  const subject = `${serviceName} booking confirmed`;
+  const copy = getBookingEmailCopy(customerLanguage);
+  const subject = `${copy.confirmedSubject}: ${serviceName}`;
   const text = [
     `Hello ${customerName},`,
     "",
-    "Your Punkat Music studio booking is confirmed.",
+    copy.confirmed,
     "",
     `Service: ${serviceName}`,
     `Date: ${formattedBookingDate}`,
     `Time: ${startLabel} - ${endLabel}`,
     `Duration: ${durationHours} hour(s)`,
     `Participants: ${participants}`,
-    `Paid: ${amount.toFixed(2)} ${currency}`,
+    `${copy.paymentDue}: ${amount.toFixed(2)} ${currency}`,
     customerPhone ? `Phone: ${customerPhone}` : null,
     notes ? `Notes: ${notes}` : null,
     "",
@@ -217,7 +259,7 @@ export async function sendBookingAdminNotificationEmail({
     `Customer: ${customerName}`,
     `Email: ${buyerEmail}`,
     customerPhone ? `Phone: ${customerPhone}` : null,
-    `Amount: ${amount.toFixed(2)} ${currency}`,
+    `Payment due at the studio: ${amount.toFixed(2)} ${currency}`,
     paymentProvider ? `Payment: ${paymentProvider}` : null,
     notes ? `Notes: ${notes}` : null,
     "",
@@ -236,6 +278,102 @@ export async function sendBookingAdminNotificationEmail({
   return {
     delivered: true,
   };
+}
+
+export async function sendBookingRequestEmails({
+  customerName,
+  buyerEmail,
+  serviceName,
+  bookingDate,
+  startLabel,
+  endLabel,
+  durationHours,
+  participants,
+  amount,
+  currency,
+  customerPhone,
+  customerLanguage,
+  notes,
+  bookingReference,
+}) {
+  if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+    return { delivered: false, reason: "SMTP is not configured yet." };
+  }
+
+  const formattedBookingDate = formatBookingDate(bookingDate);
+  const copy = getBookingEmailCopy(customerLanguage);
+
+  const details = [
+    `Service: ${serviceName}`,
+    `Date: ${formattedBookingDate}`,
+    `Time: ${startLabel} - ${endLabel}`,
+    `Duration: ${durationHours} hour(s)`,
+    `Participants: ${participants}`,
+    `Customer: ${customerName}`,
+    `Email: ${buyerEmail}`,
+    customerPhone ? `Phone: ${customerPhone}` : null,
+    `${copy.paymentDue}: ${amount.toFixed(2)} ${currency}`,
+    `Booking reference: ${bookingReference}`,
+    notes ? `Notes: ${notes}` : null,
+  ].filter(Boolean);
+
+  await Promise.all([
+    sendMailWithTimeout({
+      from: config.smtp.from,
+      to: buyerEmail,
+      subject: `${copy.requestSubject}: ${serviceName} | ${formattedBookingDate} ${startLabel}`,
+      text: [
+        `Hello ${customerName},`,
+        "",
+        copy.requestReceived,
+        copy.requestNext,
+        "",
+        ...details.slice(0, 5),
+        "",
+        signature,
+      ].join("\n"),
+    }),
+    sendMailWithTimeout({
+      from: config.smtp.from,
+      to: config.bookingAdminEmail,
+      subject: `Booking request: ${bookingReference} | ${serviceName} | ${formattedBookingDate} ${startLabel}`,
+      text: [
+        "Hello,",
+        "",
+        "A booking request is awaiting your confirmation. The selected slot is blocked until you confirm or cancel it in Availability Admin.",
+        "",
+        ...details,
+        "",
+        signature,
+      ].join("\n"),
+    }),
+  ]);
+
+  return { delivered: true };
+}
+
+export async function sendBookingRequestCancellationEmail({ buyerEmail, customerName, customerLanguage, serviceName, bookingDate, startLabel, endLabel }) {
+  if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+    return { delivered: false, reason: "SMTP is not configured yet." };
+  }
+
+  const copy = getBookingEmailCopy(customerLanguage);
+
+  await sendMailWithTimeout({
+    from: config.smtp.from,
+    to: buyerEmail,
+    subject: `${copy.declinedSubject}: ${serviceName}`,
+    text: [
+      `Hello ${customerName},`,
+      "",
+      `${copy.declined} ${formatBookingDate(bookingDate)} ${startLabel} - ${endLabel}.`,
+      copy.released,
+      "",
+      signature,
+    ].join("\n"),
+  });
+
+  return { delivered: true };
 }
 
 export async function sendOtherServiceRequestEmails({
