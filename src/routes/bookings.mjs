@@ -4,12 +4,14 @@ import { config } from "../config.mjs";
 import {
   cancelBookingHold,
   confirmBookingRequest,
+  cancelConfirmedBooking,
   createAdminBooking,
   createBookingRequest,
   createStudioClosures,
   deleteStudioClosure,
   formatBookingSummary,
   listApprovalPendingBookings,
+  listConfirmedBookings,
   getPublicBookingServices,
   listStudioClosures,
   listAvailabilityForDate,
@@ -22,6 +24,7 @@ import {
   sendOtherServiceRequestEmails,
   sendBookingRequestCancellationEmail,
   sendBookingRequestEmails,
+  sendConfirmedBookingCancellationEmail,
 } from "../services/emailService.mjs";
 
 export const bookingRouter = express.Router();
@@ -202,6 +205,42 @@ bookingRouter.post("/admin/requests/cancel", async (req, res, next) => {
     }
 
     await sendBookingRequestCancellationEmail({
+      buyerEmail: booking.customer_email,
+      customerName: booking.customer_name,
+      customerLanguage: booking.customer_language,
+      serviceName: booking.service_name,
+      bookingDate: booking.booking_date,
+      startLabel: `${String(booking.start_hour).padStart(2, "0")}:00`,
+      endLabel: `${String(booking.end_hour).padStart(2, "0")}:00`,
+    });
+
+    res.json({ ok: true, booking: formatBookingSummary(booking) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/admin/confirmed/list", async (req, res, next) => {
+  try {
+    ensureAdminPassword(req.body?.adminPassword);
+    const bookings = await listConfirmedBookings();
+    res.json({ ok: true, bookings: bookings.map((booking) => formatBookingSummary(booking)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bookingRouter.post("/admin/confirmed/cancel", async (req, res, next) => {
+  try {
+    const { adminPassword, bookingToken } = req.body || {};
+    ensureAdminPassword(adminPassword);
+    const booking = await cancelConfirmedBooking({ bookingToken });
+
+    if (!booking) {
+      throw new HttpError(404, "Confirmed booking was not found.");
+    }
+
+    await sendConfirmedBookingCancellationEmail({
       buyerEmail: booking.customer_email,
       customerName: booking.customer_name,
       customerLanguage: booking.customer_language,
