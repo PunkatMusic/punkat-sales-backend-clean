@@ -20,7 +20,18 @@ export function decodeCheckoutReference(reference) {
 }
 
 async function sumupFetch(path, { method = "GET", body }) {
-  const response = await fetch(`${config.sumup.apiBase}${path}`, {
+  const url = `${config.sumup.apiBase}${path}`;
+
+  if (config.sumup.debugLogging) {
+    console.log("SUMUP_DEBUG_REQUEST", {
+      url,
+      method,
+      accessTokenLast3: config.sumup.apiKey.slice(-3),
+      payload: body || null,
+    });
+  }
+
+  const response = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${config.sumup.apiKey}`,
@@ -29,7 +40,23 @@ async function sumupFetch(path, { method = "GET", body }) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const payload = await response.json();
+  const rawResponse = await response.text();
+  let payload;
+
+  try {
+    payload = rawResponse ? JSON.parse(rawResponse) : null;
+  } catch (_error) {
+    payload = { rawResponse };
+  }
+
+  if (config.sumup.debugLogging) {
+    console.log("SUMUP_DEBUG_RESPONSE", {
+      url,
+      status: response.status,
+      ok: response.ok,
+      payload,
+    });
+  }
 
   if (!response.ok) {
     throw new HttpError(502, "SumUp API request failed.", payload);
@@ -58,7 +85,6 @@ export async function createSumUpPayment({
       currency,
       merchant_code: config.sumup.merchantCode,
       description,
-      pay_to_email: "sales@punkatmusic.com",
       redirect_url: redirectUrl || config.successUrl,
       hosted_checkout: {
         enabled: true,
