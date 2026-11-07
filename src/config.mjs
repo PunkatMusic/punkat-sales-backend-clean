@@ -30,6 +30,7 @@ export const config = {
     apiKey: process.env.SUMUP_API_KEY || "",
     merchantCode: process.env.SUMUP_MERCHANT_CODE || "",
     apiBase: process.env.SUMUP_API_BASE || "https://api.sumup.com",
+    debugLogging: process.env.SUMUP_DEBUG_LOGGING === "true",
   },
   downloadRoot: process.env.DOWNLOAD_ROOT || "",
   promo: {
