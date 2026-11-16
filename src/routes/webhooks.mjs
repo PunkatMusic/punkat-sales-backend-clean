@@ -4,7 +4,7 @@ import { config } from "../config.mjs";
 import { createDownloadToken } from "../services/downloadService.mjs";
 import { sendLicenseEmail } from "../services/emailService.mjs";
 import { createLicenseRecord } from "../services/licenseService.mjs";
-import { findOrderByProviderOrderId, markOrderPaid, saveWebhookEvent, storeDownloadToken, storeLicense } from "../services/orderService.mjs";
+import { findLicenseByOrderId, findOrderByProviderOrderId, markOrderPaid, saveWebhookEvent, storeDownloadToken, storeLicense } from "../services/orderService.mjs";
 import { verifyPayPalWebhook } from "../services/paypalService.mjs";
 import { getSumUpCheckout, verifySumUpWebhook } from "../services/sumupService.mjs";
 
@@ -14,6 +14,16 @@ async function fulfillPaidOrder({ provider, payload, providerOrderId, buyerEmail
   const existingOrder = await findOrderByProviderOrderId(providerOrderId);
   const effectiveOrderId = existingOrder?.id || orderId;
   const effectiveBuyerEmail = existingOrder?.buyer_email || buyerEmail;
+
+  // Providers may retry notifications. A paid order must receive one license only.
+  const existingLicense = await findLicenseByOrderId(effectiveOrderId);
+  if (existingLicense) {
+    return {
+      alreadyFulfilled: true,
+      serialLast4: existingLicense.serial_last4,
+    };
+  }
+
   const license = createLicenseRecord(product.code);
   const token = createDownloadToken();
   const downloadUrl = `${config.appBaseUrl}/api/download/${token.token}`;
