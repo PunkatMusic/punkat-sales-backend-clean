@@ -106,6 +106,8 @@ export async function createSumUpPayment({
       merchant_code: config.sumup.merchantCode,
       description,
       redirect_url: redirectUrl || config.successUrl,
+      // SumUp notifies this server directly after the hosted payment finishes.
+      return_url: `${config.appBaseUrl}/api/webhooks/sumup`,
       hosted_checkout: {
         enabled: true,
       },
