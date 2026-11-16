@@ -7,6 +7,12 @@ function encodeCheckoutReference(data) {
   return Buffer.from(JSON.stringify(data)).toString("base64url");
 }
 
+function createShortCheckoutReference() {
+  // SumUp limits checkout_reference to fewer than 90 characters.
+  // The payment/order ID remains the authoritative lookup key in our database.
+  return `pm_${crypto.randomBytes(16).toString("hex")}`;
+}
+
 export function decodeCheckoutReference(reference) {
   if (!reference) {
     return null;
@@ -20,7 +26,18 @@ export function decodeCheckoutReference(reference) {
 }
 
 async function sumupFetch(path, { method = "GET", body }) {
-  const response = await fetch(`${config.sumup.apiBase}${path}`, {
+  const url = `${config.sumup.apiBase}${path}`;
+
+  if (config.sumup.debugLogging) {
+    console.log("SUMUP_DEBUG_REQUEST", {
+      url,
+      method,
+      accessTokenLast3: config.sumup.apiKey.slice(-3),
+      payload: body || null,
+    });
+  }
+
+  const response = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${config.sumup.apiKey}`,
@@ -29,7 +46,23 @@ async function sumupFetch(path, { method = "GET", body }) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const payload = await response.json();
+  const rawResponse = await response.text();
+  let payload;
+
+  try {
+    payload = rawResponse ? JSON.parse(rawResponse) : null;
+  } catch (_error) {
+    payload = { rawResponse };
+  }
+
+  if (config.sumup.debugLogging) {
+    console.log("SUMUP_DEBUG_RESPONSE", {
+      url,
+      status: response.status,
+      ok: response.ok,
+      payload,
+    });
+  }
 
   if (!response.ok) {
     throw new HttpError(502, "SumUp API request failed.", payload);
@@ -46,10 +79,7 @@ export async function createSumUpPayment({
   customData,
   redirectUrl,
 }) {
-  const checkoutReference = encodeCheckoutReference({
-    bookingToken: customData?.bookingToken || null,
-    nonce: crypto.randomUUID(),
-  });
+  const checkoutReference = createShortCheckoutReference();
   const payload = await sumupFetch("/v0.1/checkouts", {
     method: "POST",
     body: {
