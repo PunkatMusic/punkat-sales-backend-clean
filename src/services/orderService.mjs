@@ -74,6 +74,23 @@ export async function markOrderPaid({ providerOrderId }) {
   return result.rows[0] || null;
 }
 
+export async function findLicenseByOrderId(orderId) {
+  if (!process.env.DATABASE_URL || !orderId) {
+    return null;
+  }
+
+  const result = await pool.query(
+    `select serial_last4
+     from licenses
+     where order_id = $1
+     order by id asc
+     limit 1`,
+    [orderId]
+  );
+
+  return result.rows[0] || null;
+}
+
 export async function storeLicense({ orderId, productId, license }) {
   if (!process.env.DATABASE_URL) {
     return;
