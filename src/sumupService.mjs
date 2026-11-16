@@ -13,6 +13,21 @@ function createShortCheckoutReference() {
   return `pm_${crypto.randomBytes(16).toString("hex")}`;
 }
 
+function serializeSumUpRequest(body) {
+  const serialized = JSON.stringify(body);
+
+  // Keep EUR amounts explicitly at two decimal places in the outgoing JSON.
+  // SumUp defines amount as a JSON number, so 5.00 remains numeric (not a string).
+  if (typeof body?.amount !== "number") {
+    return serialized;
+  }
+
+  return serialized.replace(
+    /"amount":-?\d+(?:\.\d+)?/,
+    `"amount":${body.amount.toFixed(2)}`
+  );
+}
+
 export function decodeCheckoutReference(reference) {
   if (!reference) {
     return null;
@@ -27,6 +42,7 @@ export function decodeCheckoutReference(reference) {
 
 async function sumupFetch(path, { method = "GET", body }) {
   const url = `${config.sumup.apiBase}${path}`;
+  const requestBody = body ? serializeSumUpRequest(body) : undefined;
 
   if (config.sumup.debugLogging) {
     console.log("SUMUP_DEBUG_REQUEST", {
@@ -34,6 +50,7 @@ async function sumupFetch(path, { method = "GET", body }) {
       method,
       accessTokenLast3: config.sumup.apiKey.slice(-3),
       payload: body || null,
+      serializedPayload: requestBody || null,
     });
   }
 
@@ -43,7 +60,7 @@ async function sumupFetch(path, { method = "GET", body }) {
       Authorization: `Bearer ${config.sumup.apiKey}`,
       "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: requestBody,
   });
 
   const rawResponse = await response.text();
